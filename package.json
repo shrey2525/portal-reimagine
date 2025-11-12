@@ -1,0 +1,40 @@
+{
+  "name": "portalsync-reality-bridge",
+  "version": "1.0.0",
+  "description": "Mobile-first Meta Horizon Worlds experience with multi-touch gestures, gyroscope scanning, and haptic feedback",
+  "main": "scripts/core/GameController.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "serve": "node serve.js",
+    "start": "npm run build && npm run serve",
+    "test:integration": "node test-integration.js",
+    "lint": "eslint scripts/**/*.ts",
+    "format": "prettier --write \"scripts/**/*.ts\"",
+    "test": "echo \"Tests to be implemented\" && exit 0"
+  },
+  "keywords": [
+    "meta-horizon",
+    "mobile-first",
+    "portals",
+    "gyroscope",
+    "haptics",
+    "multi-touch",
+    "vr",
+    "mobile-innovation",
+    "hackathon"
+  ],
+  "author": "Shrey Chaturvedi",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.45.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

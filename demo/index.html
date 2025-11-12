@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>PortalSync: Reality Bridge - Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #0A0E1A 0%, #1A1F2E 100%);
+            color: #FFFFFF;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 50% 50%, #1A1F2E 0%, #0A0E1A 100%);
+        }
+
+        #debug-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(26, 31, 46, 0.95);
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-family: 'Courier New', monospace;
+            max-width: 300px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 217, 255, 0.3);
+            z-index: 2000;
+        }
+
+        #debug-panel h3 {
+            color: #00D9FF;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        #debug-panel .metric {
+            display: flex;
+            justify-content: space-between;
+            margin: 4px 0;
+            padding: 4px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+
+        #debug-panel .metric-label {
+            color: #B0B8CC;
+        }
+
+        #debug-panel .metric-value {
+            color: #00D9FF;
+            font-weight: bold;
+        }
+
+        #debug-panel .metric-value.warning {
+            color: #FFB800;
+        }
+
+        #debug-panel .metric-value.error {
+            color: #FF4444;
+        }
+
+        #splash-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0A0E1A 0%, #1A1F2E 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            transition: opacity 0.5s;
+        }
+
+        #splash-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #splash-screen h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #00D9FF, #B040FF);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        #splash-screen p {
+            font-size: 16px;
+            color: #B0B8CC;
+            margin-bottom: 30px;
+        }
+
+        #start-button {
+            background: linear-gradient(90deg, #00D9FF, #B040FF);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        #start-button:active {
+            transform: scale(0.95);
+        }
+
+        .portal {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(0, 217, 255, 0.6) 0%, rgba(176, 64, 255, 0.3) 100%);
+            border: 3px solid #00D9FF;
+            box-shadow: 0 0 30px rgba(0, 217, 255, 0.8);
+            animation: portalPulse 2s infinite;
+            pointer-events: none;
+        }
+
+        @keyframes portalPulse {
+            0%, 100% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 1; }
+        }
+
+        .energy-signature {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #FFD700 0%, rgba(255, 215, 0, 0) 70%);
+            box-shadow: 0 0 20px #FFD700;
+            animation: energyFloat 3s infinite ease-in-out;
+            pointer-events: none;
+        }
+
+        @keyframes energyFloat {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(26, 31, 46, 0.95);
+            padding: 15px 25px;
+            border-radius: 15px;
+            text-align: center;
+            font-size: 14px;
+            max-width: 90%;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 217, 255, 0.3);
+        }
+
+        #instructions h4 {
+            color: #00D9FF;
+            margin-bottom: 10px;
+        }
+
+        #instructions ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        #instructions li {
+            color: #B0B8CC;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="splash-screen">
+            <h1>⭕ PortalSync: Reality Bridge</h1>
+            <p>Mobile-First Meta Horizon Experience</p>
+            <button id="start-button">Start Demo</button>
+        </div>
+
+        <div id="canvas"></div>
+
+        <div id="debug-panel">
+            <h3>📊 Performance Monitor</h3>
+            <div class="metric">
+                <span class="metric-label">FPS:</span>
+                <span class="metric-value" id="fps">60</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Frame Time:</span>
+                <span class="metric-value" id="frametime">16ms</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Memory:</span>
+                <span class="metric-value" id="memory">0MB</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Gestures:</span>
+                <span class="metric-value" id="gesture">None</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Orientation:</span>
+                <span class="metric-value" id="orientation">N/A</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Portals:</span>
+                <span class="metric-value" id="portals">0</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Energy:</span>
+                <span class="metric-value" id="energy">0/10</span>
+            </div>
+        </div>
+
+        <div id="instructions">
+            <h4>🎮 Controls</h4>
+            <ul>
+                <li>👆 Tap: Create portal</li>
+                <li>🤏 Pinch: Scale portal</li>
+                <li>🔄 Rotate: Orient portal</li>
+                <li>📱 Tilt: Scan for energy</li>
+                <li>🤝 Multi-touch: Collaborate</li>
+            </ul>
+        </div>
+    </div>
+
+    <script type="module">
+        // Demo script - simplified version for testing
+        console.log('PortalSync Demo Loading...');
+
+        let portals = [];
+        let energySignatures = [];
+        let gameStarted = false;
+        let lastFrameTime = performance.now();
+
+        // Initialize demo
+        const startButton = document.getElementById('start-button');
+        const splashScreen = document.getElementById('splash-screen');
+        const canvas = document.getElementById('canvas');
+
+        startButton.addEventListener('click', startDemo);
+
+        function startDemo() {
+            // Request device orientation permission (iOS 13+)
+            if (typeof DeviceOrientationEvent !== 'undefined' &&
+                typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            initializeGame();
+                        }
+                    })
+                    .catch(console.error);
+            } else {
+                initializeGame();
+            }
+        }
+
+        function initializeGame() {
+            splashScreen.classList.add('hidden');
+            gameStarted = true;
+
+            // Add some energy signatures
+            for (let i = 0; i < 10; i++) {
+                createEnergySignature();
+            }
+
+            // Start game loop
+            requestAnimationFrame(gameLoop);
+
+            // Setup touch events
+            canvas.addEventListener('touchstart', handleTouchStart);
+            canvas.addEventListener('touchmove', handleTouchMove);
+            canvas.addEventListener('touchend', handleTouchEnd);
+
+            // Setup orientation
+            window.addEventListener('deviceorientation', handleOrientation);
+
+            // Haptic test (if available)
+            if (navigator.vibrate) {
+                navigator.vibrate(50); // Welcome vibration
+            }
+
+            console.log('Demo started!');
+        }
+
+        function gameLoop(timestamp) {
+            if (!gameStarted) return;
+
+            // Calculate FPS
+            const frameTime = timestamp - lastFrameTime;
+            const fps = 1000 / frameTime;
+
+            // Update debug info
+            document.getElementById('fps').textContent = fps.toFixed(1);
+            document.getElementById('frametime').textContent = frameTime.toFixed(1) + 'ms';
+            document.getElementById('portals').textContent = portals.length;
+            document.getElementById('energy').textContent = `${energySignatures.filter(e => e.collected).length}/${energySignatures.length}`;
+
+            // Update memory if available
+            if (performance.memory) {
+                const memMB = (performance.memory.usedJSHeapSize / (1024 * 1024)).toFixed(0);
+                document.getElementById('memory').textContent = memMB + 'MB';
+            }
+
+            lastFrameTime = timestamp;
+            requestAnimationFrame(gameLoop);
+        }
+
+        function handleTouchStart(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+
+            if (e.touches.length === 1) {
+                document.getElementById('gesture').textContent = 'Tap';
+                createPortal(touch.clientX, touch.clientY);
+
+                // Haptic feedback
+                if (navigator.vibrate) {
+                    navigator.vibrate(30);
+                }
+            } else if (e.touches.length === 2) {
+                document.getElementById('gesture').textContent = 'Pinch/Rotate';
+                if (navigator.vibrate) {
+                    navigator.vibrate([20, 20, 20]);
+                }
+            }
+        }
+
+        function handleTouchMove(e) {
+            e.preventDefault();
+            if (e.touches.length === 2) {
+                document.getElementById('gesture').textContent = 'Scaling...';
+            }
+        }
+
+        function handleTouchEnd(e) {
+            e.preventDefault();
+            document.getElementById('gesture').textContent = 'None';
+        }
+
+        function handleOrientation(e) {
+            const pitch = e.beta?.toFixed(0) || '0';
+            const roll = e.gamma?.toFixed(0) || '0';
+            document.getElementById('orientation').textContent = `P:${pitch}° R:${roll}°`;
+
+            // Check for energy signatures in scan direction
+            checkEnergyScan(pitch, roll);
+        }
+
+        function createPortal(x, y) {
+            const portal = document.createElement('div');
+            portal.className = 'portal';
+            portal.style.left = (x - 50) + 'px';
+            portal.style.top = (y - 50) + 'px';
+
+            canvas.appendChild(portal);
+            portals.push(portal);
+
+            console.log('Portal created at', x, y);
+
+            // Auto-remove after 10 seconds
+            setTimeout(() => {
+                portal.remove();
+                portals = portals.filter(p => p !== portal);
+            }, 10000);
+        }
+
+        function createEnergySignature() {
+            const energy = document.createElement('div');
+            energy.className = 'energy-signature';
+            energy.style.left = Math.random() * (window.innerWidth - 30) + 'px';
+            energy.style.top = Math.random() * (window.innerHeight - 30) + 'px';
+            energy.collected = false;
+
+            canvas.appendChild(energy);
+            energySignatures.push(energy);
+
+            // Make it collectible
+            energy.addEventListener('click', () => {
+                if (!energy.collected) {
+                    energy.collected = true;
+                    energy.style.animation = 'none';
+                    energy.style.transform = 'scale(0)';
+
+                    // Haptic feedback
+                    if (navigator.vibrate) {
+                        navigator.vibrate([50, 50, 100]);
+                    }
+
+                    setTimeout(() => energy.remove(), 300);
+                    console.log('Energy collected!');
+                }
+            });
+        }
+
+        function checkEnergyScan(pitch, roll) {
+            // Simple scan simulation
+            energySignatures.forEach(energy => {
+                if (!energy.collected) {
+                    // Reveal based on orientation
+                    const opacity = Math.abs(pitch / 90);
+                    energy.style.opacity = Math.max(0.3, opacity);
+                }
+            });
+        }
+
+        console.log('Demo ready! Click "Start Demo" to begin.');
+    </script>
+</body>
+</html>

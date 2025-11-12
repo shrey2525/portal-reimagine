@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>PortalSync: Reality Bridge - Game Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #0A0E1A 0%, #1A1F2E 100%);
+            color: #FFFFFF;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #console-output {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            max-height: 50vh;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-y: auto;
+            z-index: 1000;
+            border: 1px solid #00D9FF;
+        }
+
+        .log-entry {
+            margin: 4px 0;
+            padding: 4px;
+            border-left: 3px solid #00D9FF;
+            padding-left: 8px;
+        }
+
+        .log-entry.error {
+            border-left-color: #FF4444;
+            color: #FF8888;
+        }
+
+        .log-entry.success {
+            border-left-color: #44FF44;
+            color: #88FF88;
+        }
+
+        .log-entry.info {
+            border-left-color: #4488FF;
+            color: #88BBFF;
+        }
+
+        #start-button {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px 40px;
+            background: linear-gradient(135deg, #00D9FF 0%, #0088CC 100%);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 2000;
+            box-shadow: 0 4px 20px rgba(0, 217, 255, 0.4);
+            transition: transform 0.2s;
+        }
+
+        #start-button:hover {
+            transform: translate(-50%, -50%) scale(1.05);
+        }
+
+        #start-button:active {
+            transform: translate(-50%, -50%) scale(0.95);
+        }
+
+        #status-panel {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #00D9FF;
+            font-size: 14px;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 6px 0;
+        }
+
+        .status-value {
+            color: #00D9FF;
+            font-weight: bold;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <button id="start-button">🚀 Start PortalSync Demo</button>
+
+        <div id="console-output" class="hidden"></div>
+
+        <div id="status-panel" class="hidden">
+            <div class="status-item">
+                <span>Status:</span>
+                <span class="status-value" id="game-status">Initializing...</span>
+            </div>
+            <div class="status-item">
+                <span>Environment:</span>
+                <span class="status-value" id="environment">Browser</span>
+            </div>
+            <div class="status-item">
+                <span>Input System:</span>
+                <span class="status-value" id="input-status">Ready</span>
+            </div>
+            <div class="status-item">
+                <span>Scanner:</span>
+                <span class="status-value" id="scanner-status">Inactive</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load the compiled game code -->
+    <script type="module">
+        // Import the game from compiled dist
+        import { startPortalSync } from '../dist/browser-entry.js';
+
+        const consoleOutput = document.getElementById('console-output');
+        const startButton = document.getElementById('start-button');
+        const statusPanel = document.getElementById('status-panel');
+        const gameStatus = document.getElementById('game-status');
+        const environment = document.getElementById('environment');
+
+        let game = null;
+        let logCount = 0;
+
+        // Override console.log to display in UI
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+
+        function addLog(message, type = 'info') {
+            if (logCount++ > 100) {
+                consoleOutput.innerHTML = ''; // Clear after 100 logs
+                logCount = 0;
+            }
+
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            consoleOutput.appendChild(entry);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addLog(args.join(' '), 'info');
+        };
+
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addLog('ERROR: ' + args.join(' '), 'error');
+        };
+
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addLog('WARN: ' + args.join(' '), 'info');
+        };
+
+        // Start the game
+        startButton.addEventListener('click', async () => {
+            try {
+                startButton.classList.add('hidden');
+                consoleOutput.classList.remove('hidden');
+                statusPanel.classList.remove('hidden');
+
+                addLog('🚀 Initializing PortalSync: Reality Bridge...', 'success');
+                gameStatus.textContent = 'Starting...';
+
+                // Detect environment
+                const isMetaHorizon = typeof window.MetaHorizon !== 'undefined';
+                environment.textContent = isMetaHorizon ? 'Meta Horizon Worlds' : 'Browser (Dev Mode)';
+                addLog(`Environment: ${environment.textContent}`, 'info');
+
+                // Initialize the game
+                game = startPortalSync();
+
+                gameStatus.textContent = 'Running';
+                addLog('✅ Game initialized successfully!', 'success');
+                addLog('', 'info');
+                addLog('📱 CONTROLS:', 'success');
+                addLog('  • Click/Tap: Basic interaction', 'info');
+                addLog('  • Long press: Start portal creation', 'info');
+                addLog('  • Pinch: Scale portal (touch device)', 'info');
+                addLog('  • Rotate: Orient portal (touch device)', 'info');
+                addLog('  • Tilt device: Scanner mode (mobile)', 'info');
+                addLog('', 'info');
+
+                // Request permissions if on mobile
+                if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    addLog('Requesting device orientation permission...', 'info');
+                    try {
+                        const permission = await DeviceOrientationEvent.requestPermission();
+                        if (permission === 'granted') {
+                            addLog('✅ Device orientation permission granted', 'success');
+                        } else {
+                            addLog('⚠️  Device orientation permission denied', 'error');
+                        }
+                    } catch (error) {
+                        addLog(`❌ Permission error: ${error.message}`, 'error');
+                    }
+                }
+
+                if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function') {
+                    addLog('Requesting device motion permission...', 'info');
+                    try {
+                        const permission = await DeviceMotionEvent.requestPermission();
+                        if (permission === 'granted') {
+                            addLog('✅ Device motion permission granted', 'success');
+                        } else {
+                            addLog('⚠️  Device motion permission denied', 'error');
+                        }
+                    } catch (error) {
+                        addLog(`❌ Permission error: ${error.message}`, 'error');
+                    }
+                }
+
+                // Setup interaction demonstrations
+                setupInteractionDemo();
+
+            } catch (error) {
+                addLog(`❌ Failed to initialize: ${error.message}`, 'error');
+                console.error('Initialization error:', error);
+                gameStatus.textContent = 'Error';
+            }
+        });
+
+        function setupInteractionDemo() {
+            const container = document.getElementById('game-container');
+
+            // Demonstrate touch/click
+            container.addEventListener('click', (e) => {
+                addLog(`Click at (${e.clientX}, ${e.clientY})`, 'info');
+
+                // Visual feedback
+                createRipple(e.clientX, e.clientY);
+            });
+
+            // Demonstrate long press
+            let pressTimer;
+            container.addEventListener('mousedown', (e) => {
+                pressTimer = setTimeout(() => {
+                    addLog(`Long press detected! Starting portal creation...`, 'success');
+                    createPortalPreview(e.clientX, e.clientY);
+
+                    // Actually trigger the game's portal creation
+                    if (game && game.portalManager) {
+                        const position = {
+                            x: (e.clientX / window.innerWidth) * 10 - 5,  // Convert screen coords to game world
+                            y: 0,
+                            z: (e.clientY / window.innerHeight) * 10 - 5
+                        };
+                        const playerId = game.gameState?.currentPlayer?.id || 'demo_player';
+
+                        addLog(`Calling portalManager.startPortalCreation at (${position.x.toFixed(2)}, ${position.y}, ${position.z.toFixed(2)})`, 'info');
+                        game.portalManager.startPortalCreation(position, playerId);
+                    }
+                }, 500);
+            });
+
+            container.addEventListener('mouseup', () => {
+                clearTimeout(pressTimer);
+            });
+
+            // Touch events for mobile
+            container.addEventListener('touchstart', (e) => {
+                const touch = e.touches[0];
+                addLog(`Touch at (${touch.clientX}, ${touch.clientY})`, 'info');
+            });
+
+            // Listen for scanner toggle
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 's' || e.key === 'S') {
+                    const scannerStatus = document.getElementById('scanner-status');
+                    const isActive = scannerStatus.textContent === 'Active';
+                    scannerStatus.textContent = isActive ? 'Inactive' : 'Active';
+                    addLog(`Scanner ${isActive ? 'deactivated' : 'activated'}`, 'success');
+
+                    // Actually toggle the game's scanner
+                    if (game && game.scannerSystem) {
+                        if (isActive) {
+                            game.scannerSystem.deactivate();
+                            addLog('Game scanner system deactivated', 'info');
+                        } else {
+                            game.scannerSystem.activate();
+                            addLog('Game scanner system activated', 'info');
+                        }
+                    }
+                }
+            });
+
+            addLog('✅ Interaction demo ready!', 'success');
+            addLog('Press "S" to toggle scanner, Click to interact', 'info');
+        }
+
+        function createRipple(x, y) {
+            const ripple = document.createElement('div');
+            ripple.style.position = 'absolute';
+            ripple.style.left = x + 'px';
+            ripple.style.top = y + 'px';
+            ripple.style.width = '10px';
+            ripple.style.height = '10px';
+            ripple.style.borderRadius = '50%';
+            ripple.style.background = 'rgba(0, 217, 255, 0.8)';
+            ripple.style.transform = 'translate(-50%, -50%)';
+            ripple.style.pointerEvents = 'none';
+            ripple.style.animation = 'ripple-expand 0.6s ease-out';
+            document.getElementById('game-container').appendChild(ripple);
+
+            setTimeout(() => ripple.remove(), 600);
+        }
+
+        function createPortalPreview(x, y) {
+            const preview = document.createElement('div');
+            preview.style.position = 'absolute';
+            preview.style.left = x + 'px';
+            preview.style.top = y + 'px';
+            preview.style.width = '100px';
+            preview.style.height = '100px';
+            preview.style.borderRadius = '50%';
+            preview.style.border = '3px solid rgba(0, 217, 255, 0.5)';
+            preview.style.transform = 'translate(-50%, -50%)';
+            preview.style.pointerEvents = 'none';
+            preview.style.background = 'radial-gradient(circle, rgba(0, 217, 255, 0.2), transparent)';
+            preview.style.boxShadow = '0 0 30px rgba(0, 217, 255, 0.6)';
+            preview.style.animation = 'portal-pulse 2s infinite';
+            document.getElementById('game-container').appendChild(preview);
+
+            // Vibrate if supported
+            if (navigator.vibrate) {
+                navigator.vibrate([100, 50, 100]);
+            }
+
+            setTimeout(() => preview.remove(), 3000);
+        }
+
+        // Add CSS animations
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes ripple-expand {
+                from {
+                    transform: translate(-50%, -50%) scale(1);
+                    opacity: 1;
+                }
+                to {
+                    transform: translate(-50%, -50%) scale(10);
+                    opacity: 0;
+                }
+            }
+
+            @keyframes portal-pulse {
+                0%, 100% {
+                    transform: translate(-50%, -50%) scale(1);
+                    opacity: 0.7;
+                }
+                50% {
+                    transform: translate(-50%, -50%) scale(1.1);
+                    opacity: 1;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+
+        addLog('Demo page loaded. Click "Start PortalSync Demo" to begin.', 'success');
+    </script>
+</body>
+</html>

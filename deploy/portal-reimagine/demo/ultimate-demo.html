@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>PortalSync: Reality Bridge - Ultimate Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0A0E1A;
+            color: #FFF;
+            overflow: hidden;
+            touch-action: none;
+            height: 100vh;
+        }
+
+        /* AR Camera Background */
+        #camera-view {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background: linear-gradient(135deg, #0A0E1A 0%, #1A1F2E 100%);
+        }
+
+        #camera-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.7;
+        }
+
+        /* Canvas for drawing */
+        #draw-canvas {
+            position: absolute;
+            inset: 0;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        #draw-canvas.active {
+            pointer-events: auto;
+        }
+
+        /* Game Container */
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Screen Edge Glow */
+        .edge-glow {
+            position: fixed;
+            pointer-events: none;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .edge-glow.active {
+            opacity: 1;
+        }
+
+        .edge-glow.top {
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 50px;
+            background: linear-gradient(to bottom, var(--glow-color, #00D9FF) 0%, transparent 100%);
+        }
+
+        .edge-glow.bottom {
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 50px;
+            background: linear-gradient(to top, var(--glow-color, #00D9FF) 0%, transparent 100%);
+        }
+
+        .edge-glow.left {
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 50px;
+            background: linear-gradient(to right, var(--glow-color, #00D9FF) 0%, transparent 100%);
+        }
+
+        .edge-glow.right {
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 50px;
+            background: linear-gradient(to left, var(--glow-color, #00D9FF) 0%, transparent 100%);
+        }
+
+        /* Start Screen */
+        #start-screen {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, rgba(10, 14, 26, 0.95), rgba(26, 31, 46, 0.95));
+            z-index: 2000;
+            padding: 20px;
+        }
+
+        #start-screen.hidden { display: none; }
+
+        .title {
+            font-size: clamp(28px, 8vw, 56px);
+            font-weight: 700;
+            background: linear-gradient(135deg, #00D9FF 0%, #7B2CBF 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+            text-align: center;
+            animation: glow 2s ease-in-out infinite;
+        }
+
+        @keyframes glow {
+            0%, 100% { filter: drop-shadow(0 0 10px rgba(0, 217, 255, 0.5)); }
+            50% { filter: drop-shadow(0 0 20px rgba(0, 217, 255, 0.8)); }
+        }
+
+        .subtitle {
+            font-size: clamp(14px, 3vw, 20px);
+            color: #00D9FF;
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        .feature-list {
+            max-width: 400px;
+            margin-bottom: 30px;
+            text-align: left;
+        }
+
+        .feature-item {
+            padding: 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+        }
+
+        .feature-icon {
+            font-size: 20px;
+        }
+
+        #start-button {
+            padding: 20px 50px;
+            font-size: 20px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #00D9FF 0%, #7B2CBF 100%);
+            border: none;
+            border-radius: 50px;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(0, 217, 255, 0.3);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        /* HUD */
+        #game-hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        .hud-row {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .stat-item {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 2px solid rgba(0, 217, 255, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .stat-value {
+            font-weight: 700;
+            color: #00D9FF;
+        }
+
+        /* Battery Indicator */
+        #battery-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .battery-bar {
+            width: 40px;
+            height: 16px;
+            border: 2px solid #00D9FF;
+            border-radius: 3px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .battery-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00D9FF, #7B2CBF);
+            transition: width 0.3s;
+        }
+
+        /* Combo Counter */
+        #combo-counter {
+            position: absolute;
+            top: 100px;
+            right: 20px;
+            background: rgba(123, 44, 191, 0.9);
+            padding: 15px 25px;
+            border-radius: 15px;
+            font-size: 24px;
+            font-weight: 700;
+            opacity: 0;
+            transform: scale(0);
+            transition: all 0.3s;
+        }
+
+        #combo-counter.active {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* Voice Command Indicator */
+        #voice-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 217, 255, 0.9);
+            color: #0A0E1A;
+            padding: 20px 40px;
+            border-radius: 30px;
+            font-size: 24px;
+            font-weight: 700;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 3000;
+        }
+
+        #voice-indicator.listening {
+            opacity: 1;
+            animation: voicePulse 1s ease-in-out infinite;
+        }
+
+        @keyframes voicePulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.1); }
+        }
+
+        /* Drawn Portal */
+        .drawn-portal {
+            position: absolute;
+            pointer-events: none;
+            opacity: 0.8;
+            filter: drop-shadow(0 0 20px currentColor);
+            animation: portalGlow 2s ease-in-out infinite;
+        }
+
+        @keyframes portalGlow {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        /* Particle Trail */
+        .particle-trail {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #00D9FF 0%, transparent 70%);
+            pointer-events: none;
+            animation: trailFade 0.8s ease-out forwards;
+        }
+
+        @keyframes trailFade {
+            from {
+                opacity: 1;
+                transform: scale(1);
+            }
+            to {
+                opacity: 0;
+                transform: scale(0.3);
+            }
+        }
+
+        /* Energy Orbs */
+        .energy-orb {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            animation: float 3s ease-in-out infinite;
+            transition: transform 0.2s;
+        }
+
+        .energy-orb:active {
+            transform: scale(0.8);
+        }
+
+        .energy-orb.common {
+            background: radial-gradient(circle, #00D9FF, rgba(0, 217, 255, 0.3));
+            box-shadow: 0 0 20px #00D9FF;
+        }
+
+        .energy-orb.rare {
+            background: radial-gradient(circle, #9D4EDD, rgba(157, 78, 221, 0.3));
+            box-shadow: 0 0 20px #9D4EDD;
+        }
+
+        .energy-orb.legendary {
+            background: radial-gradient(circle, #FFD60A, rgba(255, 214, 10, 0.3));
+            box-shadow: 0 0 30px #FFD60A;
+            animation: float 2s ease-in-out infinite, legendaryPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+
+        @keyframes legendaryPulse {
+            0%, 100% { box-shadow: 0 0 30px #FFD60A; }
+            50% { box-shadow: 0 0 50px #FFD60A, 0 0 70px rgba(255, 214, 10, 0.5); }
+        }
+
+        /* Bottom Controls */
+        #bottom-controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            z-index: 1000;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 90vw;
+        }
+
+        .control-button {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: rgba(0, 217, 255, 0.2);
+            border: 2px solid #00D9FF;
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .control-button:active {
+            background: rgba(0, 217, 255, 0.5);
+            transform: scale(0.9);
+        }
+
+        .control-button.active {
+            background: rgba(0, 217, 255, 0.6);
+            box-shadow: 0 0 30px rgba(0, 217, 255, 0.8);
+        }
+
+        .control-label {
+            font-size: 10px;
+            position: absolute;
+            bottom: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            color: #00D9FF;
+        }
+
+        /* Toast */
+        #toast-container {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 3000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .toast {
+            background: rgba(0, 217, 255, 0.9);
+            color: #0A0E1A;
+            padding: 15px 30px;
+            border-radius: 30px;
+            font-weight: 600;
+            box-shadow: 0 10px 30px rgba(0, 217, 255, 0.5);
+            animation: toastSlide 0.3s, toastFade 3s forwards;
+        }
+
+        @keyframes toastSlide {
+            from { transform: translateY(100px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes toastFade {
+            0%, 80% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        /* Achievement */
+        .achievement {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: linear-gradient(135deg, #00D9FF, #7B2CBF);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            z-index: 4000;
+            text-align: center;
+            animation: achievementPop 3s forwards;
+        }
+
+        @keyframes achievementPop {
+            0% { transform: translate(-50%, -50%) scale(0); }
+            10% { transform: translate(-50%, -50%) scale(1.2); }
+            15% { transform: translate(-50%, -50%) scale(1); }
+            90% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+        }
+
+        /* Light Sensor Overlay */
+        #light-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0);
+            pointer-events: none;
+            transition: background 0.5s;
+            z-index: 2;
+        }
+
+        #light-overlay.dark {
+            background: rgba(0, 0, 0, 0.7);
+        }
+
+        /* Gesture Trail Visualization */
+        #gesture-trail {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 15;
+        }
+
+        /* Camera Toggle */
+        #camera-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(0, 217, 255, 0.3);
+            border: 2px solid #00D9FF;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 1100;
+        }
+
+        #camera-toggle.active {
+            background: rgba(0, 217, 255, 0.6);
+        }
+    </style>
+</head>
+<body>
+    <!-- AR Camera View -->
+    <div id="camera-view">
+        <video id="camera-video" autoplay playsinline></video>
+    </div>
+
+    <!-- Light Sensor Overlay -->
+    <div id="light-overlay"></div>
+
+    <!-- Edge Glows -->
+    <div class="edge-glow top"></div>
+    <div class="edge-glow bottom"></div>
+    <div class="edge-glow left"></div>
+    <div class="edge-glow right"></div>
+
+    <!-- Game Container -->
+    <div id="game-container">
+        <!-- Start Screen -->
+        <div id="start-screen">
+            <div class="title">PortalSync: Reality Bridge</div>
+            <div class="subtitle">Ultimate Mobile-First Experience</div>
+
+            <div class="feature-list">
+                <div class="feature-item"><span class="feature-icon">✏️</span> Draw Custom Portal Shapes</div>
+                <div class="feature-item"><span class="feature-icon">📷</span> AR Camera Portal Preview</div>
+                <div class="feature-item"><span class="feature-icon">🥋</span> Gesture Combo System</div>
+                <div class="feature-item"><span class="feature-icon">🎤</span> Voice Commands</div>
+                <div class="feature-item"><span class="feature-icon">🔋</span> Battery = Power Level</div>
+                <div class="feature-item"><span class="feature-icon">💡</span> Light Sensor Puzzles</div>
+                <div class="feature-item"><span class="feature-icon">📳</span> Shake Detection</div>
+                <div class="feature-item"><span class="feature-icon">✨</span> Particle Effects</div>
+            </div>
+
+            <button id="start-button">🚀 Start Ultimate Demo</button>
+        </div>
+
+        <!-- Canvas for drawing portals -->
+        <canvas id="draw-canvas"></canvas>
+
+        <!-- Gesture Trail Canvas -->
+        <canvas id="gesture-trail"></canvas>
+
+        <!-- HUD -->
+        <div id="game-hud">
+            <div class="hud-row">
+                <div class="stat-item">
+                    <span>⚡</span>
+                    <span class="stat-value" id="energy-count">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>🌀</span>
+                    <span class="stat-value" id="portal-count">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>🔥</span>
+                    <span class="stat-value" id="combo-value">0x</span>
+                </div>
+                <div class="stat-item" id="battery-indicator">
+                    <span>🔋</span>
+                    <div class="battery-bar">
+                        <div class="battery-fill" id="battery-fill"></div>
+                    </div>
+                    <span class="stat-value" id="battery-percent">100%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Camera Toggle -->
+        <div id="camera-toggle" title="Toggle AR Camera">📷</div>
+
+        <!-- Combo Counter -->
+        <div id="combo-counter">
+            <div style="font-size: 14px;">COMBO</div>
+            <div id="combo-text">0x</div>
+        </div>
+
+        <!-- Voice Indicator -->
+        <div id="voice-indicator">🎤 Listening...</div>
+
+        <!-- Bottom Controls -->
+        <div id="bottom-controls">
+            <div class="control-button" id="draw-button" title="Draw Portal">
+                ✏️
+                <div class="control-label">Draw</div>
+            </div>
+            <div class="control-button" id="voice-button" title="Voice Commands">
+                🎤
+                <div class="control-label">Voice</div>
+            </div>
+            <div class="control-button" id="scanner-button" title="Scanner">
+                🔍
+                <div class="control-label">Scan</div>
+            </div>
+            <div class="control-button" id="shake-button" title="Shake to Disperse">
+                📳
+                <div class="control-label">Shake</div>
+            </div>
+        </div>
+
+        <!-- Toast Container -->
+        <div id="toast-container"></div>
+    </div>
+
+    <script type="module">
+        import { startPortalSync } from '../dist/browser-entry.js';
+
+        // Game State
+        let game = null;
+        let energyCount = 0;
+        let portalCount = 0;
+        let comboCount = 0;
+        let batteryLevel = 100;
+        let lightLevel = 100;
+        let isDrawing = false;
+        let drawPoints = [];
+        let lastGestures = [];
+        let cameraActive = false;
+        let voiceRecognition = null;
+
+        const canvas = document.getElementById('draw-canvas');
+        const ctx = canvas.getContext('2d');
+        const trailCanvas = document.getElementById('gesture-trail');
+        const trailCtx = trailCanvas.getContext('2d');
+
+        // Resize canvases
+        function resizeCanvases() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            trailCanvas.width = window.innerWidth;
+            trailCanvas.height = window.innerHeight;
+        }
+        resizeCanvases();
+        window.addEventListener('resize', resizeCanvases);
+
+        // Start Button
+        document.getElementById('start-button').addEventListener('click', async () => {
+            document.getElementById('start-screen').classList.add('hidden');
+            await initDemo();
+        });
+
+        async function initDemo() {
+            console.log('🚀 Initializing Ultimate Demo...');
+
+            // Initialize game
+            game = startPortalSync();
+
+            // Request all permissions
+            await requestPermissions();
+
+            // Setup all systems
+            setupDrawingSystem();
+            setupGestureCombo();
+            setupVoiceCommands();
+            setupBatteryMonitor();
+            setupLightSensor();
+            setupShakeDetection();
+            setupCameraAR();
+            setupEdgeGlow();
+            spawnEnergyOrbs();
+            setupControls();
+
+            showToast('🎮 All Systems Online!');
+            showAchievement('🏆 Welcome!', 'Ultimate Demo Activated');
+        }
+
+        // === 1. DRAWING SYSTEM ===
+        function setupDrawingSystem() {
+            let drawing = false;
+            const drawButton = document.getElementById('draw-button');
+
+            drawButton.addEventListener('click', () => {
+                isDrawing = !isDrawing;
+                drawButton.classList.toggle('active', isDrawing);
+                canvas.classList.toggle('active', isDrawing);
+
+                if (isDrawing) {
+                    showToast('✏️ Draw Mode: Trace a portal shape!');
+                } else {
+                    showToast('✏️ Draw Mode: Off');
+                }
+            });
+
+            canvas.addEventListener('touchstart', startDrawing);
+            canvas.addEventListener('touchmove', draw);
+            canvas.addEventListener('touchend', finishDrawing);
+
+            canvas.addEventListener('mousedown', startDrawing);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', finishDrawing);
+
+            function startDrawing(e) {
+                if (!isDrawing) return;
+                drawing = true;
+                drawPoints = [];
+                const pos = getPosition(e);
+                drawPoints.push(pos);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+
+            function draw(e) {
+                if (!isDrawing || !drawing) return;
+                e.preventDefault();
+                const pos = getPosition(e);
+                drawPoints.push(pos);
+
+                ctx.strokeStyle = '#00D9FF';
+                ctx.lineWidth = 5;
+                ctx.lineCap = 'round';
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#00D9FF';
+
+                if (drawPoints.length > 1) {
+                    ctx.beginPath();
+                    ctx.moveTo(drawPoints[drawPoints.length - 2].x, drawPoints[drawPoints.length - 2].y);
+                    ctx.lineTo(pos.x, pos.y);
+                    ctx.stroke();
+                }
+
+                createParticleTrail(pos.x, pos.y);
+            }
+
+            function finishDrawing(e) {
+                if (!isDrawing || !drawing) return;
+                drawing = false;
+
+                if (drawPoints.length > 10) {
+                    createDrawnPortal(drawPoints);
+                    portalCount++;
+                    updateStats();
+                    vibrate([50, 30, 50]);
+                    showToast('🌀 Custom Portal Created!');
+                    addCombo();
+                }
+
+                setTimeout(() => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    drawPoints = [];
+                }, 2000);
+            }
+        }
+
+        function createDrawnPortal(points) {
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.classList.add('drawn-portal');
+            svg.style.position = 'absolute';
+            svg.style.left = '0';
+            svg.style.top = '0';
+            svg.style.width = '100%';
+            svg.style.height = '100%';
+            svg.style.pointerEvents = 'none';
+            svg.style.zIndex = '20';
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            let d = `M ${points[0].x} ${points[0].y}`;
+            for (let i = 1; i < points.length; i++) {
+                d += ` L ${points[i].x} ${points[i].y}`;
+            }
+            d += ' Z';
+
+            path.setAttribute('d', d);
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke', '#00D9FF');
+            path.setAttribute('stroke-width', '4');
+            path.setAttribute('filter', 'url(#glow)');
+
+            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            const filter = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+            filter.setAttribute('id', 'glow');
+            const blur = document.createElementNS('http://www.w3.org/2000/svg', 'feGaussianBlur');
+            blur.setAttribute('stdDeviation', '5');
+            filter.appendChild(blur);
+            defs.appendChild(filter);
+
+            svg.appendChild(defs);
+            svg.appendChild(path);
+            document.getElementById('game-container').appendChild(svg);
+
+            setTimeout(() => svg.remove(), 3000);
+        }
+
+        // === 2. GESTURE COMBO SYSTEM ===
+        const COMBOS = {
+            'swipe-pinch': { name: 'Portal Boost', icon: '⚡' },
+            'rotate-tap': { name: 'Spin Portal', icon: '🌀' },
+            'long-swipe': { name: 'Energy Beam', icon: '✨' }
+        };
+
+        function setupGestureCombo() {
+            // Track gesture sequences
+            window.addEventListener('touchstart', recordGesture);
+            window.addEventListener('touchmove', recordGesture);
+        }
+
+        function recordGesture(e) {
+            const touches = e.touches.length;
+            const gesture = touches === 1 ? 'tap' : touches === 2 ? 'pinch' : 'multi';
+
+            lastGestures.push(gesture);
+            if (lastGestures.length > 3) lastGestures.shift();
+
+            checkCombo();
+        }
+
+        function checkCombo() {
+            const sequence = lastGestures.join('-');
+            for (const [combo, data] of Object.entries(COMBOS)) {
+                if (sequence.includes(combo)) {
+                    executeCombo(data);
+                    lastGestures = [];
+                }
+            }
+        }
+
+        function executeCombo(data) {
+            addCombo();
+            showToast(`${data.icon} ${data.name} Combo!`);
+            vibrate([30, 20, 30, 20, 30]);
+        }
+
+        function addCombo() {
+            comboCount++;
+            document.getElementById('combo-counter').classList.add('active');
+            document.getElementById('combo-text').textContent = comboCount + 'x';
+            document.getElementById('combo-value').textContent = comboCount + 'x';
+
+            setTimeout(() => {
+                if (comboCount > 0) comboCount--;
+                if (comboCount === 0) {
+                    document.getElementById('combo-counter').classList.remove('active');
+                }
+            }, 3000);
+        }
+
+        // === 3. VOICE COMMANDS ===
+        function setupVoiceCommands() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                console.log('Speech recognition not supported');
+                return;
+            }
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            voiceRecognition = new SpeechRecognition();
+            voiceRecognition.continuous = false;
+            voiceRecognition.lang = 'en-US';
+
+            voiceRecognition.onresult = (event) => {
+                const command = event.results[0][0].transcript.toLowerCase();
+                console.log('Voice command:', command);
+                handleVoiceCommand(command);
+            };
+
+            voiceRecognition.onend = () => {
+                document.getElementById('voice-indicator').classList.remove('listening');
+            };
+
+            document.getElementById('voice-button').addEventListener('click', () => {
+                try {
+                    voiceRecognition.start();
+                    document.getElementById('voice-indicator').classList.add('listening');
+                    vibrate(50);
+                } catch (e) {
+                    console.log('Voice recognition error:', e);
+                }
+            });
+        }
+
+        function handleVoiceCommand(command) {
+            if (command.includes('portal') || command.includes('open')) {
+                createQuickPortal();
+                showToast('🎤 Voice: Portal Created!');
+            } else if (command.includes('scan')) {
+                toggleScanner();
+                showToast('🎤 Voice: Scanner Toggled!');
+            } else if (command.includes('collect') || command.includes('energy')) {
+                collectNearbyEnergy();
+                showToast('🎤 Voice: Collecting Energy!');
+            } else {
+                showToast('🎤 Command not recognized');
+            }
+        }
+
+        function createQuickPortal() {
+            const x = window.innerWidth / 2;
+            const y = window.innerHeight / 2;
+            const points = [];
+            for (let i = 0; i < 20; i++) {
+                const angle = (i / 20) * Math.PI * 2;
+                points.push({
+                    x: x + Math.cos(angle) * 100,
+                    y: y + Math.sin(angle) * 100
+                });
+            }
+            createDrawnPortal(points);
+            portalCount++;
+            updateStats();
+        }
+
+        // === 4. BATTERY MONITOR ===
+        async function setupBatteryMonitor() {
+            if ('getBattery' in navigator) {
+                const battery = await navigator.getBattery();
+                updateBattery(battery.level * 100);
+
+                battery.addEventListener('levelchange', () => {
+                    updateBattery(battery.level * 100);
+                });
+            } else {
+                // Simulate battery drain
+                setInterval(() => {
+                    batteryLevel = Math.max(20, batteryLevel - 0.1);
+                    updateBattery(batteryLevel);
+                }, 5000);
+            }
+        }
+
+        function updateBattery(level) {
+            batteryLevel = level;
+            document.getElementById('battery-fill').style.width = level + '%';
+            document.getElementById('battery-percent').textContent = Math.floor(level) + '%';
+
+            if (level < 20) {
+                showToast('🔋 Low Battery: DESPERATION MODE!');
+            }
+        }
+
+        // === 5. LIGHT SENSOR ===
+        async function setupLightSensor() {
+            // Simulate light changes for demo
+            setInterval(() => {
+                lightLevel = 50 + Math.random() * 50;
+                updateLightLevel(lightLevel);
+            }, 10000);
+        }
+
+        function updateLightLevel(level) {
+            const overlay = document.getElementById('light-overlay');
+            if (level < 30) {
+                overlay.classList.add('dark');
+                showLegendaryEnergies();
+            } else {
+                overlay.classList.remove('dark');
+            }
+        }
+
+        function showLegendaryEnergies() {
+            const legendaries = document.querySelectorAll('.energy-orb.legendary');
+            legendaries.forEach(orb => {
+                orb.style.opacity = '1';
+                orb.style.animation = 'float 2s ease-in-out infinite, legendaryPulse 1s ease-in-out infinite';
+            });
+        }
+
+        // === 6. SHAKE DETECTION ===
+        function setupShakeDetection() {
+            let lastShake = 0;
+            window.addEventListener('devicemotion', (e) => {
+                if (!e.accelerationIncludingGravity) return;
+                const acc = e.accelerationIncludingGravity;
+                const magnitude = Math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2);
+
+                if (magnitude > 25 && Date.now() - lastShake > 1000) {
+                    lastShake = Date.now();
+                    handleShake();
+                }
+            });
+        }
+
+        function handleShake() {
+            showToast('📳 SHAKE DETECTED!');
+            vibrate([100, 50, 100, 50, 100]);
+            disperseEnergies();
+            addCombo();
+        }
+
+        function disperseEnergies() {
+            document.querySelectorAll('.energy-orb').forEach(orb => {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 100 + Math.random() * 100;
+                orb.style.transition = 'all 0.5s ease-out';
+                orb.style.transform = `translate(${Math.cos(angle) * distance}px, ${Math.sin(angle) * distance}px)`;
+            });
+
+            setTimeout(() => {
+                document.querySelectorAll('.energy-orb').forEach(orb => {
+                    orb.style.transition = 'all 1s ease-in-out';
+                    orb.style.transform = '';
+                });
+            }, 500);
+        }
+
+        // === 7. AR CAMERA ===
+        async function setupCameraAR() {
+            const toggle = document.getElementById('camera-toggle');
+            const video = document.getElementById('camera-video');
+
+            toggle.addEventListener('click', async () => {
+                cameraActive = !cameraActive;
+                toggle.classList.toggle('active', cameraActive);
+
+                if (cameraActive) {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({
+                            video: { facingMode: 'environment' }
+                        });
+                        video.srcObject = stream;
+                        showToast('📷 AR Camera Active!');
+                    } catch (e) {
+                        console.log('Camera error:', e);
+                        showToast('📷 Camera not available');
+                        cameraActive = false;
+                        toggle.classList.remove('active');
+                    }
+                } else {
+                    if (video.srcObject) {
+                        video.srcObject.getTracks().forEach(track => track.stop());
+                        video.srcObject = null;
+                    }
+                    showToast('📷 AR Camera Off');
+                }
+            });
+        }
+
+        // === 8. EDGE GLOW ===
+        function setupEdgeGlow() {
+            setInterval(() => {
+                const orbs = document.querySelectorAll('.energy-orb');
+                if (orbs.length === 0) return;
+
+                const nearestOrb = Array.from(orbs).reduce((nearest, orb) => {
+                    const rect = orb.getBoundingClientRect();
+                    const centerX = rect.left + rect.width / 2;
+                    const centerY = rect.top + rect.height / 2;
+                    const distance = Math.sqrt(
+                        Math.pow(centerX - window.innerWidth / 2, 2) +
+                        Math.pow(centerY - window.innerHeight / 2, 2)
+                    );
+
+                    return !nearest || distance < nearest.distance
+                        ? { orb, distance, x: centerX, y: centerY }
+                        : nearest;
+                }, null);
+
+                if (nearestOrb) {
+                    updateEdgeGlow(nearestOrb);
+                }
+            }, 100);
+        }
+
+        function updateEdgeGlow({ x, y, orb }) {
+            const edges = ['top', 'bottom', 'left', 'right'];
+            const color = getComputedStyle(orb).boxShadow.match(/rgb\([^)]+\)/)?.[0] || '#00D9FF';
+
+            edges.forEach(edge => {
+                const el = document.querySelector(`.edge-glow.${edge}`);
+                let active = false;
+
+                if (edge === 'top' && y < 100) active = true;
+                if (edge === 'bottom' && y > window.innerHeight - 100) active = true;
+                if (edge === 'left' && x < 100) active = true;
+                if (edge === 'right' && x > window.innerWidth - 100) active = true;
+
+                el.classList.toggle('active', active);
+                if (active) {
+                    el.style.setProperty('--glow-color', color);
+                }
+            });
+        }
+
+        // === ENERGY ORBS ===
+        function spawnEnergyOrbs() {
+            const rarities = ['common', 'common', 'rare', 'legendary'];
+
+            for (let i = 0; i < 12; i++) {
+                const orb = document.createElement('div');
+                orb.className = `energy-orb ${rarities[Math.floor(Math.random() * rarities.length)]}`;
+                orb.style.left = (10 + Math.random() * 80) + '%';
+                orb.style.top = (15 + Math.random() * 70) + '%';
+                orb.style.animationDelay = Math.random() * 3 + 's';
+
+                orb.addEventListener('click', () => collectEnergy(orb));
+                document.getElementById('game-container').appendChild(orb);
+            }
+        }
+
+        function collectEnergy(orb) {
+            energyCount++;
+            updateStats();
+            createParticleBurst(
+                parseFloat(orb.style.left) / 100 * window.innerWidth,
+                parseFloat(orb.style.top) / 100 * window.innerHeight
+            );
+            vibrate([30, 20, 30]);
+            showToast('⚡ Energy Collected!');
+            addCombo();
+            orb.remove();
+        }
+
+        function collectNearbyEnergy() {
+            const orbs = document.querySelectorAll('.energy-orb');
+            orbs.forEach((orb, i) => {
+                setTimeout(() => collectEnergy(orb), i * 100);
+            });
+        }
+
+        // === OTHER CONTROLS ===
+        function setupControls() {
+            document.getElementById('scanner-button').addEventListener('click', toggleScanner);
+            document.getElementById('shake-button').addEventListener('click', handleShake);
+        }
+
+        function toggleScanner() {
+            showToast('🔍 Scanner toggled');
+            vibrate(50);
+        }
+
+        // === HELPERS ===
+        function getPosition(e) {
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches ? e.touches[0] : e;
+            return {
+                x: touch.clientX - rect.left,
+                y: touch.clientY - rect.top
+            };
+        }
+
+        function createParticleTrail(x, y) {
+            const particle = document.createElement('div');
+            particle.className = 'particle-trail';
+            particle.style.left = x + 'px';
+            particle.style.top = y + 'px';
+            document.getElementById('game-container').appendChild(particle);
+            setTimeout(() => particle.remove(), 800);
+        }
+
+        function createParticleBurst(x, y) {
+            for (let i = 0; i < 20; i++) {
+                setTimeout(() => {
+                    const particle = document.createElement('div');
+                    particle.className = 'particle-trail';
+                    const angle = (i / 20) * Math.PI * 2;
+                    const distance = 50 + Math.random() * 50;
+                    particle.style.left = (x + Math.cos(angle) * distance) + 'px';
+                    particle.style.top = (y + Math.sin(angle) * distance) + 'px';
+                    document.getElementById('game-container').appendChild(particle);
+                    setTimeout(() => particle.remove(), 800);
+                }, i * 20);
+            }
+        }
+
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.getElementById('toast-container').appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function showAchievement(title, desc) {
+            const achievement = document.createElement('div');
+            achievement.className = 'achievement';
+            achievement.innerHTML = `
+                <div style="font-size: 48px; margin-bottom: 10px;">🏆</div>
+                <div style="font-size: 24px; font-weight: 700; margin-bottom: 5px;">${title}</div>
+                <div style="font-size: 14px;">${desc}</div>
+            `;
+            document.body.appendChild(achievement);
+            vibrate([100, 50, 100, 50, 100, 50, 100]);
+            setTimeout(() => achievement.remove(), 3000);
+        }
+
+        function vibrate(pattern) {
+            if (navigator.vibrate) {
+                navigator.vibrate(pattern);
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('energy-count').textContent = energyCount;
+            document.getElementById('portal-count').textContent = portalCount;
+        }
+
+        async function requestPermissions() {
+            if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                try {
+                    await DeviceOrientationEvent.requestPermission();
+                } catch (e) {
+                    console.log('Orientation permission:', e);
+                }
+            }
+
+            if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function') {
+                try {
+                    await DeviceMotionEvent.requestPermission();
+                } catch (e) {
+                    console.log('Motion permission:', e);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
